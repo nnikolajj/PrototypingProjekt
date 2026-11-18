@@ -1,7 +1,8 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
+import axios from 'axios';
+import { load } from 'cheerio';
 
-export async function getWorkingIframeSrc(movieSlug) {
+/** @param {string} movieSlug */
+async function getWorkingIframeSrc(movieSlug) {
     try {
         // 1. Lade die deutsche Movie-Seite (mit Redirect für DE)
         const url = `https://filmo.to/lang/de?redirect=/movies/${movieSlug}`;
@@ -14,7 +15,7 @@ export async function getWorkingIframeSrc(movieSlug) {
             maxRedirects: 5 // Folge den Umleitungen bis zum Ziel
         });
 
-        const $ = cheerio.load(html);
+        const $ = load(html);
 
         // 2. Finde den ersten iframe auf der Seite
         // Oft ist es der erste iframe, der nicht leer ist
@@ -29,16 +30,11 @@ export async function getWorkingIframeSrc(movieSlug) {
         return src;
 
     } catch (error) {
-        console.error("Error:", error.message);
+        console.error("Error:", error);
         return null;
     }
 }
 
-// Beispielaufruf
-getWorkingIframeSrc('mad-max-fury-road')
-    .then(src => {
-        if (src) {
-            console.log(`SET IFRAME SRC TO: ${src}`);
-            // Dies ist die URL, die du in dein <iframe> setzen kannst
-        }
-    });
+export default {
+    getWorkingIframeSrc
+}
