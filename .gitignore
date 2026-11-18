@@ -23,7 +23,7 @@ build/
 dist/
 .DS_Store
 .claude/
-.package-lock.json
+package-lock.json
 
 # Vite
 vite.config.js.timestamp-*

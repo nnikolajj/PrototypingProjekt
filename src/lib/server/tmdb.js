@@ -151,7 +151,7 @@ export async function movieMap(centerId) {
 	}
 
 	const second = await Promise.all(
-		ring1.slice(0, 4).map((m) => tmdb(`/movie/${m.id}/recommendations`).catch(() => ({ results: [] })))
+		ring1.slice(0, 4).map((/** @type {any} */ m) => tmdb(`/movie/${m.id}/recommendations`).catch(() => ({ results: [] })))
 	);
 	second.forEach((res, i) => {
 		for (const m of res.results.filter((/** @type {any} */ r) => r.poster_path).slice(0, 4)) {
