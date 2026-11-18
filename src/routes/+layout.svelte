@@ -2,18 +2,10 @@
 	import '../app.css';
 	import favicon from '#lib/assets/favicon.svg';
 	import Logo from '#lib/components/Logo.svelte';
+	import Avatar from '#lib/components/Avatar.svelte';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
-
-	const initials = $derived(
-		data.user?.name
-			.split(/\s+/)
-			.map((p) => p[0])
-			.join('')
-			.slice(0, 2)
-			.toUpperCase() ?? ''
-	);
 </script>
 
 <svelte:head>
@@ -34,7 +26,7 @@
 			title={data.user ? `Profil von ${data.user.name}` : 'Anmelden'}
 		>
 			{#if data.user}
-				<span class="avatar">{initials}</span>
+				<Avatar url={data.user.avatar_url} name={data.user.name} size={30} />
 				<span class="profile-label">{data.user.name}</span>
 			{:else}
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -107,17 +99,6 @@
 
 	.profile svg {
 		margin-left: 0.4rem;
-	}
-
-	.avatar {
-		width: 30px;
-		height: 30px;
-		border-radius: 50%;
-		display: grid;
-		place-items: center;
-		font-size: 0.75rem;
-		font-weight: 700;
-		background: linear-gradient(135deg, #5ac8fa, var(--accent));
 	}
 
 	main {

@@ -1,5 +1,5 @@
-import { getUser } from '#lib/server/session.js';
+import { getCurrentProfile } from '#lib/server/session.js';
 
-export function load({ cookies }) {
-	return { user: getUser(cookies) };
+export async function load({ locals }) {
+	return { user: await getCurrentProfile(locals) };
 }
