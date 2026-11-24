@@ -43,11 +43,21 @@
 			<h2 class="section-title">
 				Heutige Auswahl <span class="pill">{today}</span>
 			</h2>
-			<div class="picks">
+			<p class="muted lead">
+				Wie im Fernsehen: {data.picks.length} Filme aus {data.picks.length} Genres – du wählst nur noch.
+				Morgen gibt's ein neues Programm.
+			</p>
+			<ol class="picks">
 				{#each data.picks as movie (movie.id)}
-					<MovieCard {movie} />
+					<li class="slot" class:prime={movie.slot === '20:15'}>
+						<div class="slot-head">
+							<time>{movie.slot}</time>
+							<span class="genre">{movie.genre}</span>
+						</div>
+						<MovieCard {movie} />
+					</li>
 				{/each}
-			</div>
+			</ol>
 		</section>
 
 		<section class="map-section">
@@ -162,9 +172,50 @@
 	}
 
 	.picks {
+		list-style: none;
+		margin: 0;
+		padding: 0;
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 1.5rem;
+		grid-template-columns: repeat(5, minmax(0, 1fr));
+		gap: 1.25rem;
+	}
+
+	.slot {
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+	}
+
+	/* Programmzeile über dem Poster: Sendezeit + Genre ("Sender") */
+	.slot-head {
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
+		padding-bottom: 0.45rem;
+		border-bottom: 1px solid var(--glass-border);
+	}
+
+	.slot-head time {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.01em;
+	}
+
+	.genre {
+		font-size: 0.75rem;
+		color: var(--text-dim);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	/* 20:15 = Primetime, wie im TV hervorgehoben */
+	.prime .slot-head {
+		border-bottom-color: var(--accent);
+	}
+
+	.prime .slot-head time {
+		color: var(--accent);
 	}
 
 	.lead {
@@ -193,9 +244,18 @@
 		}
 	}
 
-	@media (max-width: 520px) {
+	/* Schmal: Programm seitlich wischen statt 5 winzige Poster */
+	@media (max-width: 720px) {
 		.picks {
-			gap: 0.75rem;
+			grid-template-columns: none;
+			grid-auto-flow: column;
+			grid-auto-columns: 42%;
+			overflow-x: auto;
+			scroll-snap-type: x mandatory;
+			padding-bottom: 0.5rem;
+		}
+		.slot {
+			scroll-snap-align: start;
 		}
 	}
 </style>

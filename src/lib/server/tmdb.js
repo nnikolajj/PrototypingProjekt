@@ -41,16 +41,114 @@ const slim = (m) => ({
 	popularity: m.popularity ?? 0
 });
 
-/** Tagesauswahl: 3 Filme aus den Trends, pro Tag stabil gemischt. */
-export async function todaysPicks() {
-	const { results } = await tmdb('/trending/movie/day');
-	const pool = results.filter((/** @type {any} */ m) => m.poster_path);
-	const day = Math.floor(Date.now() / 86_400_000);
-	const picks = [];
-	for (let i = 0; i < 3 && pool.length; i++) {
-		picks.push(pool.splice((day * 7 + i * 13) % pool.length, 1)[0]);
+/**
+ * Genres für das Tagesprogramm, mit deutschem Namen (spart einen API-Aufruf).
+ * Bewusst ohne Doku, TV-Film usw. – es sollen "Abendfilme" sein.
+ */
+const PROGRAM_GENRES = [
+	{ id: 28, name: 'Action' },
+	{ id: 12, name: 'Abenteuer' },
+	{ id: 16, name: 'Animation' },
+	{ id: 35, name: 'Komödie' },
+	{ id: 80, name: 'Krimi' },
+	{ id: 18, name: 'Drama' },
+	{ id: 14, name: 'Fantasy' },
+	{ id: 27, name: 'Horror' },
+	{ id: 10749, name: 'Liebesfilm' },
+	{ id: 878, name: 'Science-Fiction' },
+	{ id: 53, name: 'Thriller' },
+	{ id: 10751, name: 'Familie' },
+	{ id: 9648, name: 'Mystery' },
+	{ id: 10752, name: 'Kriegsfilm' },
+	{ id: 37, name: 'Western' }
+];
+
+/** Sendezeiten wie im TV-Abendprogramm. */
+const SLOTS = ['18:00', '20:15', '22:00', '23:45', '01:30'];
+
+/** Heutiges Datum in der Schweiz, z.B. "2026-11-24" – wechselt um Mitternacht. */
+const swissDay = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Zurich' });
+
+/**
+ * Zufallsgenerator mit Startwert: gleicher Tag → gleiche "Zufälle".
+ * So sehen alle Besucher den ganzen Tag dasselbe Programm.
+ * @param {string} seedText
+ */
+function seededRandom(seedText) {
+	let h = 2166136261;
+	for (const c of seedText) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+	return () => {
+		h = (h + 0x6d2b79f5) | 0;
+		let t = Math.imul(h ^ (h >>> 15), 1 | h);
+		t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+	};
+}
+
+/** @type {{ day: string, picks: Promise<any[]> } | null} */
+let programCache = null;
+
+/**
+ * Tagesprogramm: 5 bekannte, gut bewertete Filme aus 5 verschiedenen Genres.
+ * Zufällig, aber pro Tag fest – wie ein Fernsehprogramm, aus dem man wählt.
+ */
+export function todaysPicks() {
+	const day = swissDay();
+	if (programCache?.day !== day) {
+		const picks = buildProgram(day);
+		programCache = { day, picks };
+		// Bei einem Fehler nicht den kaputten Stand für den ganzen Tag behalten.
+		picks.catch(() => {
+			if (programCache?.picks === picks) programCache = null;
+		});
 	}
-	return picks.map(slim);
+	return programCache.picks;
+}
+
+/** @param {string} day */
+async function buildProgram(day) {
+	const rand = seededRandom(day);
+	// Genres mischen (Fisher-Yates) und die ersten 5 nehmen.
+	const genres = [...PROGRAM_GENRES];
+	for (let i = genres.length - 1; i > 0; i--) {
+		const j = Math.floor(rand() * (i + 1));
+		[genres[i], genres[j]] = [genres[j], genres[i]];
+	}
+	genres.length = SLOTS.length;
+	// Seitenwahl vorab, damit die Reihenfolge der Zufallszahlen fix ist.
+	const pages = genres.map(() => 1 + Math.floor(rand() * 3));
+	const offsets = genres.map(() => rand());
+
+	const lists = await Promise.all(
+		genres.map(async (g, i) => {
+			/** @param {number} page */
+			const discover = (page) =>
+				tmdb('/discover/movie', {
+					with_genres: g.id,
+					sort_by: 'vote_count.desc', // je mehr Stimmen, desto bekannter
+					'vote_count.gte': 1500,
+					'vote_average.gte': 6.8,
+					include_adult: 'false',
+					page
+				});
+			let { results } = await discover(pages[i]);
+			if (!results.length && pages[i] > 1) ({ results } = await discover(1));
+			return results.filter((/** @type {any} */ m) => m.poster_path);
+		})
+	);
+
+	/** @type {Set<number>} */
+	const used = new Set();
+	/** @type {(ReturnType<typeof slim> & { genre: string })[]} */
+	const program = [];
+	genres.forEach((g, i) => {
+		const pool = lists[i].filter((/** @type {any} */ m) => !used.has(m.id));
+		if (!pool.length) return;
+		const movie = pool[Math.floor(offsets[i] * pool.length)];
+		used.add(movie.id);
+		program.push({ ...slim(movie), genre: g.name });
+	});
+	return program.map((m, i) => ({ ...m, slot: SLOTS[i] }));
 }
 
 /** @param {string} query */
