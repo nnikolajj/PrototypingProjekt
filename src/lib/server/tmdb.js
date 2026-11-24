@@ -97,7 +97,6 @@ export function todaysPicks() {
 	if (programCache?.day !== day) {
 		const picks = buildProgram(day);
 		programCache = { day, picks };
-		// Bei einem Fehler nicht den kaputten Stand für den ganzen Tag behalten.
 		picks.catch(() => {
 			if (programCache?.picks === picks) programCache = null;
 		});
@@ -125,7 +124,7 @@ async function buildProgram(day) {
 			const discover = (page) =>
 				tmdb('/discover/movie', {
 					with_genres: g.id,
-					sort_by: 'vote_count.desc', // je mehr Stimmen, desto bekannter
+					sort_by: 'vote_count.desc',
 					'vote_count.gte': 1500,
 					'vote_average.gte': 6.8,
 					include_adult: 'false',

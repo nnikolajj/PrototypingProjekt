@@ -43,15 +43,10 @@
 			<h2 class="section-title">
 				Heutige Auswahl <span class="pill">{today}</span>
 			</h2>
-			<p class="muted lead">
-				Wie im Fernsehen: {data.picks.length} Filme aus {data.picks.length} Genres – du wählst nur noch.
-				Morgen gibt's ein neues Programm.
-			</p>
 			<ol class="picks">
 				{#each data.picks as movie (movie.id)}
-					<li class="slot" class:prime={movie.slot === '20:15'}>
+					<li class="slot">
 						<div class="slot-head">
-							<time>{movie.slot}</time>
 							<span class="genre">{movie.genre}</span>
 						</div>
 						<MovieCard {movie} />
