@@ -8,6 +8,7 @@
 <script>
 	import { goto } from '$app/navigation';
 	import { img } from '#lib/tmdb-image.js';
+	import MapSearch from '#lib/components/MapSearch.svelte';
 
 	/**
 	 * @typedef {{id:number,title:string,poster:string|null,year:string,ring:number,parent:number|null,popularity:number}} MapMovie
@@ -15,8 +16,8 @@
 	 * @typedef {MapMovie & {x:number,y:number,r:number}} Placed
 	 */
 
-	/** @type {{ data: MapData }} */
-	let { data: initial } = $props();
+	/** @type {{ data: MapData, searchable?: boolean }} */
+	let { data: initial, searchable = false } = $props();
 
 	/** @type {MapData | null} */
 	let override = $state(null);
@@ -30,7 +31,7 @@
 
 	// ── Geometrie ────────────────────────────────────────────────
 	/** Abstand der Ringe zur Mitte (Weltkoordinaten) */
-	const RING_DIST = [0, 250, 390, 550];
+	const RING_DIST = [0, 220, 350, 450];
 	/** Radius der Kreise pro Ring */
 	const NODE_R = [66, 44, 32, 25];
 	/** Schriftgrösse der Titel in Bildschirm-Pixeln (bleibt beim Zoomen gleich) */
@@ -173,6 +174,18 @@
 
 	function resetView() {
 		userMoved = false;
+	}
+
+	/** Weiche Kamerafahrt für Knöpfe und Suche (nicht beim Ziehen – da soll es direkt folgen). */
+	let flying = $state(false);
+	/** @type {ReturnType<typeof setTimeout> | undefined} */
+	let flyTimer;
+	/** @param {() => void} fn */
+	function fly(fn) {
+		flying = true;
+		fn();
+		clearTimeout(flyTimer);
+		flyTimer = setTimeout(() => (flying = false), 650);
 	}
 
 	/** @param {{clientX:number, clientY:number}} e */
@@ -331,9 +344,14 @@
 	async function select(node) {
 		if (suppressClick) return;
 		if (node.ring === 0) return goto(`/film/${node.id}`);
+		await loadMap(node.id);
+	}
+
+	/** Baut die Map neu um einen Film auf. @param {number} id */
+	async function loadMap(id) {
 		loading = true;
 		try {
-			const res = await fetch(`/api/map/${node.id}`);
+			const res = await fetch(`/api/map/${id}`);
 			if (res.ok) {
 				override = await res.json();
 				resetView();
@@ -341,6 +359,32 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	/** @type {number | null} */
+	let focused = $state(null);
+	/** @type {ReturnType<typeof setTimeout> | undefined} */
+	let focusTimer;
+
+	/**
+	 * Fliegt zu einem Film, der schon auf der Map ist, und lässt ihn kurz leuchten.
+	 * @param {number} id
+	 */
+	function focusNode(id) {
+		const n = layout.nodes.find((m) => m.id === id);
+		if (!n) return;
+		takeControl();
+		const k = Math.max(cam.k, 1.1);
+		cam = { k, tx: -n.x * k, ty: -n.y * k };
+		focused = id;
+		clearTimeout(focusTimer);
+		focusTimer = setTimeout(() => (focused = null), 2600);
+	}
+
+	/** @param {{ id: number, onMap: boolean }} pick */
+	function onSearchPick(pick) {
+		if (pick.onMap) fly(() => focusNode(pick.id));
+		else loadMap(pick.id);
 	}
 
 	/** Wenn sich die Startdaten ändern (z.B. andere Auswahl), lokale Navigation zurücksetzen. */
@@ -376,7 +420,11 @@
 			{/each}
 		</defs>
 
-		<g transform="translate({w / 2 + view.tx} {h / 2 + view.ty}) scale({view.k})">
+		<g
+			class="camera"
+			class:flying
+			style:transform="translate({w / 2 + view.tx}px, {h / 2 + view.ty}px) scale({view.k})"
+		>
 			<!-- Ringe als feine Orientierung, wie Höhenlinien -->
 			{#each RING_DIST.slice(1) as r}
 				<circle cx="0" cy="0" {r} class="orbit" vector-effect="non-scaling-stroke" />
@@ -398,7 +446,8 @@
 			{#each layout.nodes as n (n.id)}
 				<g
 					class="node ring-{n.ring}"
-					class:dim={hovered !== null && hovered !== n.id}
+					class:focused={focused === n.id}
+					class:dim={(hovered !== null && hovered !== n.id) || (focused !== null && focused !== n.id)}
 					onmouseenter={() => (hovered = n.id)}
 					onmouseleave={() => (hovered = null)}
 					onclick={() => select(n)}
@@ -419,7 +468,7 @@
 							clip-path="url(#clip-{n.id})"
 						/>
 					{/if}
-					{#if visibleLabels.has(n.id) && hovered !== n.id}
+					{#if (visibleLabels.has(n.id) || focused === n.id) && hovered !== n.id}
 						<text
 							x={n.x}
 							y={n.y + n.r + (4 + FONT[n.ring]) / view.k}
@@ -446,14 +495,23 @@
 		</g>
 	</svg>
 
-	<div class="controls glass">
-		<button onclick={() => zoomAt(1.4)} aria-label="Hineinzoomen" title="Hineinzoomen">+</button>
-		<button onclick={() => zoomAt(1 / 1.4)} aria-label="Herauszoomen" title="Herauszoomen">−</button>
-		<button onclick={resetView} aria-label="Ansicht zurücksetzen" title="Ansicht zurücksetzen">⌖</button>
+	{#if searchable}
+		<div class="overlay left">
+			<MapSearch nodes={layout.nodes} onpick={onSearchPick} />
+		</div>
+	{/if}
+	<div class="overlay right">
+		<div class="controls">
+			<button onclick={() => fly(() => zoomAt(1.4))} aria-label="Hineinzoomen" title="Hineinzoomen">+</button>
+			<button onclick={() => fly(() => zoomAt(1 / 1.4))} aria-label="Herauszoomen" title="Herauszoomen">−</button>
+			<button onclick={() => fly(resetView)} aria-label="Ansicht zurücksetzen" title="Ansicht zurücksetzen">⌖</button>
+		</div>
 	</div>
 
 	{#if showWheelHint}
-		<div class="wheel-hint">Zum Zoomen <kbd>Strg</kbd> / <kbd>⌘</kbd> + Scrollen oder + / − verwenden</div>
+		<div class="wheel-hint">
+			<span>Zum Zoomen <kbd>Strg</kbd> / <kbd>⌘</kbd> + Scrollen oder + / − verwenden</span>
+		</div>
 	{/if}
 
 	<div class="hint">
@@ -489,6 +547,10 @@
 	.loading svg {
 		opacity: 0.4;
 		transition: opacity 0.2s;
+	}
+
+	.camera.flying {
+		transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 	}
 
 	.orbit {
@@ -567,15 +629,46 @@
 		fill: #fff;
 	}
 
-	.controls {
+	/* Schwebende Bedienelemente oben rechts, wie bei Apple/Google Maps */
+	.overlay {
 		position: absolute;
 		top: 0.9rem;
+		z-index: 2;
+	}
+
+	.overlay.left {
+		left: 0.9rem;
+	}
+
+	.overlay.right {
 		right: 0.9rem;
+	}
+
+	.controls {
 		display: flex;
 		flex-direction: column;
-		padding: 0;
 		overflow: hidden;
-		border-radius: 12px;
+		border-radius: 14px;
+		background: rgba(30, 34, 44, 0.55);
+		border: 1px solid rgba(255, 255, 255, 0.14);
+		backdrop-filter: blur(28px) saturate(180%);
+		-webkit-backdrop-filter: blur(28px) saturate(180%);
+		box-shadow:
+			0 10px 30px rgba(0, 0, 0, 0.4),
+			inset 0 1px 0 rgba(255, 255, 255, 0.08);
+	}
+
+	/* Gesuchter Film leuchtet kurz auf */
+	.node.focused .ring {
+		stroke: var(--accent);
+		stroke-width: 4;
+		animation: pulse 0.9s ease-in-out 3;
+	}
+
+	@keyframes pulse {
+		50% {
+			stroke-opacity: 0.25;
+		}
 	}
 
 	.controls button {
@@ -595,7 +688,7 @@
 	}
 
 	.controls button:hover {
-		background: var(--glass-strong);
+		background: rgba(255, 255, 255, 0.1);
 	}
 
 	.wheel-hint {
@@ -603,10 +696,27 @@
 		inset: 0;
 		display: grid;
 		place-items: center;
-		background: rgba(0, 0, 0, 0.45);
-		color: #fff;
-		font-weight: 500;
+		background: rgba(0, 0, 0, 0.35);
 		pointer-events: none;
+		animation: fade 0.2s ease-out;
+	}
+
+	.wheel-hint span {
+		padding: 0.7rem 1.1rem;
+		border-radius: 999px;
+		background: rgba(24, 28, 37, 0.8);
+		border: 1px solid rgba(255, 255, 255, 0.14);
+		backdrop-filter: blur(20px) saturate(180%);
+		-webkit-backdrop-filter: blur(20px) saturate(180%);
+		color: #fff;
+		font-size: 0.9rem;
+		font-weight: 500;
+	}
+
+	@keyframes fade {
+		from {
+			opacity: 0;
+		}
 	}
 
 	kbd {
