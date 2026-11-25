@@ -23,12 +23,18 @@ export async function getCurrentProfile(locals) {
 
 	const { data } = await locals.supabase
 		.from('profiles')
-		.select('id, username, name, avatar_url, created_at')
+		.select('id, username, name, avatar_url, created_at, role')
 		.eq('id', user.id)
 		.single();
 
 	return data;
 }
+
+/** Rollen wie in der Datenbank (Check-Constraint in supabase/schema.sql). */
+export const ROLES = /** @type {const} */ (['user', 'friend', 'admin']);
+
+/** Darf diese Rolle Filme schauen? @param {string | null | undefined} role */
+export const canWatch = (role) => role === 'friend' || role === 'admin';
 
 /** Erlaubte Bildtypen und Maximalgrösse für Profilbilder (wie im Storage-Bucket). */
 const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];

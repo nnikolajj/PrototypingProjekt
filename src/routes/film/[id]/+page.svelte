@@ -10,6 +10,8 @@
 	const watchHref = $derived(
 		data.user ? `/film/${m.id}/anschauen` : `/login?weiter=/film/${m.id}/anschauen`
 	);
+	// Schauen dürfen nur Friends und Admins; normale User sehen den Button gesperrt.
+	const watchLocked = $derived(!!data.user && !['friend', 'admin'].includes(data.user.role));
 
 	// Film-Map: wird erst beim Aufklappen geladen (spart ~17 TMDB-Anfragen pro Seitenaufruf)
 	let mapOpen = $state(false);
@@ -95,7 +97,16 @@
 				<div class="no-video muted">Kein Trailer verfügbar</div>
 			{/if}
 		</div>
-		<a href={watchHref} class="btn btn-primary watch">▶ Anschauen <span aria-hidden="true">☆</span></a>
+		{#if watchLocked}
+			<button class="btn btn-primary watch" disabled aria-describedby="watch-note">
+				▶ Anschauen <span aria-hidden="true">☆</span>
+			</button>
+			<p id="watch-note" class="watch-note">
+				🔒 Filme schauen können nur <strong>Friends</strong>. Frag einen Admin, ob er dich freischaltet.
+			</p>
+		{:else}
+			<a href={watchHref} class="btn btn-primary watch">▶ Anschauen <span aria-hidden="true">☆</span></a>
+		{/if}
 	</section>
 </div>
 
@@ -252,6 +263,25 @@
 		margin-top: 1.25rem;
 		padding-block: 1rem;
 		font-size: 1.05rem;
+	}
+
+	.watch:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
+		box-shadow: none;
+		filter: saturate(0.4);
+	}
+
+	.watch:disabled:hover {
+		background: var(--accent);
+		transform: none;
+	}
+
+	.watch-note {
+		margin: 0.65rem 0 0;
+		font-size: 0.85rem;
+		color: var(--text-dim);
+		text-align: center;
 	}
 
 	.block {
