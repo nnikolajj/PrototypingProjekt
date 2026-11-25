@@ -1,6 +1,7 @@
 <script>
 	import Breadcrumb from '#lib/components/Breadcrumb.svelte';
 	import MovieGrid from '#lib/components/MovieGrid.svelte';
+	import MovieMap from '#lib/components/MovieMap.svelte';
 	import { img } from '#lib/tmdb-image.js';
 
 	let { data } = $props();
@@ -9,6 +10,29 @@
 	const watchHref = $derived(
 		data.user ? `/film/${m.id}/anschauen` : `/login?weiter=/film/${m.id}/anschauen`
 	);
+
+	// Film-Map: wird erst beim Aufklappen geladen (spart ~17 TMDB-Anfragen pro Seitenaufruf)
+	let mapOpen = $state(false);
+	/** @type {Promise<any> | null} */
+	let mapData = $state(null);
+
+	/** @param {Event & { currentTarget: HTMLDetailsElement }} e */
+	function toggleMap(e) {
+		mapOpen = e.currentTarget.open;
+		if (mapOpen && !mapData) {
+			mapData = fetch(`/api/map/${m.id}`).then((r) => {
+				if (!r.ok) throw new Error('Map konnte nicht geladen werden');
+				return r.json();
+			});
+		}
+	}
+
+	// Beim Wechsel zu einem anderen Film wieder zuklappen
+	$effect.pre(() => {
+		m.id;
+		mapOpen = false;
+		mapData = null;
+	});
 
 	/** @param {number} min */
 	const runtime = (min) => (min ? `${Math.floor(min / 60)} h ${min % 60} min` : null);
@@ -91,6 +115,36 @@
 		</div>
 	</section>
 {/if}
+
+<details class="map-panel" open={mapOpen} ontoggle={toggleMap}>
+	<summary>
+		<span class="map-icon" aria-hidden="true">
+			<svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+				<circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8" />
+				<circle cx="4.5" cy="6" r="2" stroke="currentColor" stroke-width="1.6" />
+				<circle cx="19.5" cy="7" r="2" stroke="currentColor" stroke-width="1.6" />
+				<circle cx="18" cy="19" r="2" stroke="currentColor" stroke-width="1.6" />
+				<path d="M6.3 7.1 9.5 10M17.8 8.2l-3.4 2.5M16.6 17.5l-2.5-3.2" stroke="currentColor" stroke-width="1.6" />
+			</svg>
+		</span>
+		<span class="map-text">
+			<strong>Film-Map</strong>
+			<small>Entdecke, was mit „{m.title}“ verwandt ist – je näher, desto ähnlicher</small>
+		</span>
+		<span class="chev" aria-hidden="true">›</span>
+	</summary>
+	<div class="map-body">
+		{#if mapData}
+			{#await mapData}
+				<div class="map-skeleton glass">Map wird geladen …</div>
+			{:then map}
+				<MovieMap data={map} />
+			{:catch}
+				<div class="map-skeleton glass">Map konnte nicht geladen werden.</div>
+			{/await}
+		{/if}
+	</div>
+</details>
 
 {#if m.recommendations.length}
 	<section class="block">
@@ -202,6 +256,91 @@
 
 	.block {
 		margin-top: 3.5rem;
+	}
+
+	/* Aufklappbare Map im Glass-Stil */
+	.map-panel {
+		margin-top: 3.5rem;
+		border-radius: var(--radius);
+		background: var(--glass);
+		border: 1px solid var(--glass-border);
+		backdrop-filter: var(--blur);
+		-webkit-backdrop-filter: var(--blur);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+		overflow: hidden;
+	}
+
+	summary {
+		display: flex;
+		align-items: center;
+		gap: 0.9rem;
+		padding: 1rem 1.25rem;
+		cursor: pointer;
+		list-style: none;
+		transition: background 0.2s;
+	}
+
+	summary::-webkit-details-marker {
+		display: none;
+	}
+
+	summary:hover {
+		background: rgba(255, 255, 255, 0.04);
+	}
+
+	.map-icon {
+		width: 40px;
+		height: 40px;
+		border-radius: 12px;
+		display: grid;
+		place-items: center;
+		flex-shrink: 0;
+		color: #6cb6ff;
+		background: var(--accent-soft);
+	}
+
+	.map-text {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+	}
+
+	.map-text small {
+		color: var(--text-dim);
+		font-size: 0.82rem;
+	}
+
+	.chev {
+		font-size: 1.5rem;
+		color: var(--text-faint);
+		transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+	}
+
+	.map-panel[open] .chev {
+		transform: rotate(90deg);
+	}
+
+	.map-body {
+		padding: 0 0.75rem 0.75rem;
+	}
+
+	.map-panel[open] .map-body {
+		animation: reveal 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+	}
+
+	@keyframes reveal {
+		from {
+			opacity: 0;
+			transform: translateY(-6px);
+		}
+	}
+
+	.map-skeleton {
+		height: 440px;
+		display: grid;
+		place-items: center;
+		color: var(--text-dim);
 	}
 
 	.cast {

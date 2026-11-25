@@ -228,33 +228,75 @@ export async function movie(id) {
 	};
 }
 
+/** Kleiner Zwischenspeicher, damit die Map nicht bei jedem Seitenaufruf 17 TMDB-Anfragen macht. */
+const MAP_TTL = 60 * 60 * 1000;
+/** @type {Map<number, { at: number, data: Promise<any> }>} */
+const mapCache = new Map();
+
 /**
- * Daten für die Film-Map: ein Zentrum, seine Empfehlungen (Ring 1)
- * und je ein paar Empfehlungen der stärksten Nachbarn (Ring 2).
- * @param {number} centerId
+ * Film-Map mit drei Ebenen rund um einen Film:
+ * Ebene 1 = Empfehlungen zum Film, Ebene 2 = deren Empfehlungen, Ebene 3 = noch eine Stufe weiter.
+ * Jeder Knoten kennt seinen "parent", damit das Layout Äste bilden kann.
+ * @param {number | string} centerId
  */
-export async function movieMap(centerId) {
+export function movieMap(centerId) {
+	const id = Number(centerId);
+	const hit = mapCache.get(id);
+	if (hit && Date.now() - hit.at < MAP_TTL) return hit.data;
+
+	const data = buildMap(id);
+	mapCache.set(id, { at: Date.now(), data });
+	data.catch(() => mapCache.delete(id));
+	if (mapCache.size > 100) mapCache.delete(mapCache.keys().next().value ?? id);
+	return data;
+}
+
+/** @param {number} centerId */
+async function buildMap(centerId) {
+	/** @param {any[] | undefined} list @param {number} n */
+	const usable = (list, n) => (list ?? []).filter((m) => m.poster_path).slice(0, n);
+	/** @param {number} id */
+	const recs = (id) =>
+		tmdb(`/movie/${id}/recommendations`).then(
+			(r) => r.results,
+			() => []
+		);
+
 	const center = await tmdb(`/movie/${centerId}`, { append_to_response: 'recommendations' });
-	const ring1 = (center.recommendations?.results ?? []).filter((/** @type {any} */ m) => m.poster_path).slice(0, 10);
 
 	/** @type {Map<number, any>} */
-	const nodes = new Map([[center.id, { ...slim(center), ring: 0 }]]);
+	const nodes = new Map([[center.id, { ...slim(center), ring: 0, parent: null }]]);
 	/** @type {{source:number,target:number}[]} */
 	const links = [];
 
-	for (const m of ring1) {
-		nodes.set(m.id, { ...slim(m), ring: 1 });
-		links.push({ source: center.id, target: m.id });
-	}
-
-	const second = await Promise.all(
-		ring1.slice(0, 4).map((/** @type {any} */ m) => tmdb(`/movie/${m.id}/recommendations`).catch(() => ({ results: [] })))
-	);
-	second.forEach((res, i) => {
-		for (const m of res.results.filter((/** @type {any} */ r) => r.poster_path).slice(0, 4)) {
-			if (!nodes.has(m.id)) nodes.set(m.id, { ...slim(m), ring: 2 });
-			links.push({ source: ring1[i].id, target: m.id });
+	/** @param {any} m @param {number} ring @param {number} parent */
+	const add = (m, ring, parent) => {
+		if (nodes.has(m.id)) {
+			// Schon vorhanden: nur Querverbindung zeichnen (zeigt Verwandtschaft).
+			if (nodes.get(m.id).ring !== 0) links.push({ source: parent, target: m.id });
+			return false;
 		}
+		nodes.set(m.id, { ...slim(m), ring, parent });
+		links.push({ source: parent, target: m.id });
+		return true;
+	};
+
+	// Ebene 1: bis zu 10 direkte Empfehlungen
+	const ring1 = usable(center.recommendations?.results, 10).filter((m) => add(m, 1, center.id));
+
+	// Ebene 2: je 4 Empfehlungen pro Film aus Ebene 1
+	const second = await Promise.all(ring1.map((m) => recs(m.id)));
+	/** @type {any[]} */
+	const ring2 = [];
+	second.forEach((list, i) => {
+		for (const m of usable(list, 4)) if (add(m, 2, ring1[i].id)) ring2.push(m);
+	});
+
+	// Ebene 3: von den 8 bekanntesten Filmen aus Ebene 2 je 3 weitere
+	const seeds = [...ring2].sort((a, b) => b.popularity - a.popularity).slice(0, 8);
+	const third = await Promise.all(seeds.map((m) => recs(m.id)));
+	third.forEach((list, i) => {
+		for (const m of usable(list, 3)) add(m, 3, seeds[i].id);
 	});
 
 	return { nodes: [...nodes.values()], links };

@@ -63,7 +63,7 @@
 			{#await data.map}
 				<div class="map-skeleton glass">Map wird geladen …</div>
 			{:then map}
-				{#if map}<MovieMap data={map} />{/if}
+				{#if map}<MovieMap data={map} searchable />{/if}
 			{:catch}
 				<div class="map-skeleton glass">Map konnte nicht geladen werden.</div>
 			{/await}
