@@ -10,6 +10,9 @@
 	const errors = $derived(form && 'errors' in form && form.errors ? form.errors : {});
 	let editing = $state(false);
 
+	/** @type {Record<string, string>} */
+	const ROLE_LABEL = { user: 'User', friend: 'Friend', admin: 'Admin' };
+
 	$effect.pre(() => {
 		if (form && 'errors' in form) editing = true;
 		if (form && 'saved' in form) editing = false;
@@ -30,7 +33,10 @@
 				<Avatar url={user.avatar_url} name={user.name} size={96} />
 				<div class="info">
 					<h2>{user.name}</h2>
-					<p class="muted">@{user.username}</p>
+					<p class="muted">
+						@{user.username}
+						<span class="role role-{user.role}">{ROLE_LABEL[user.role] ?? user.role}</span>
+					</p>
 					<p class="since muted">
 						Dabei seit {new Date(user.created_at).toLocaleDateString('de-CH', {
 							month: 'long',
@@ -39,6 +45,9 @@
 					</p>
 				</div>
 				<div class="actions">
+					{#if user.role === 'admin'}
+						<a class="btn btn-ghost" href="/admin">Rollen verwalten</a>
+					{/if}
 					<button class="btn btn-ghost" onclick={() => (editing = true)}>Bearbeiten</button>
 					<form method="POST" action="?/logout">
 						<button class="btn btn-ghost">Abmelden</button>
@@ -95,6 +104,27 @@
 
 	.since {
 		font-size: 0.85rem;
+	}
+
+	.role {
+		margin-left: 0.4rem;
+		font-size: 0.7rem;
+		font-weight: 600;
+		padding: 0.15rem 0.55rem;
+		border-radius: 999px;
+		background: var(--glass-strong);
+		color: var(--text-dim);
+		vertical-align: 1px;
+	}
+
+	.role-friend {
+		background: rgba(48, 209, 88, 0.15);
+		color: #8ee6a6;
+	}
+
+	.role-admin {
+		background: var(--accent-soft);
+		color: #6cb6ff;
 	}
 
 	.actions {
