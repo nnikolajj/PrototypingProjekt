@@ -6,6 +6,7 @@
 - Halte Änderungen auf die Aufgabe beschränkt. Ändere keine sachfremden Dateien oder bereits vorhandene Änderungen anderer Personen.
 - Bewahre bestehendes Verhalten, außer die Aufgabe verlangt ausdrücklich eine Änderung.
 - Ergänze oder aktualisiere direkt betroffene Dokumentation.
+- Aktualisiere nach Änderungen am Code die Projektdokumentation in `README.md`. Prüfe dafür `VORLAGE_README (1).md` und `Anforderungen.pdf`, welche Inhalte und Nachweise zur Änderung gehören und wie sie dokumentiert werden müssen. Ergänze die passenden README-Kapitel, beachte dabei die vorgegebene Struktur und Pflichtangaben und beschreibe nur tatsächlich umgesetztes Verhalten.
 - Führe passende Prüfungen aus und behebe durch deine Änderungen verursachte Fehler. Für dieses Projekt sind `npm run check` und `npm run build` verfügbar.
 - Erfinde keine Anforderungen oder Issue-Nummern. Melde Einschränkungen und fehlgeschlagene Prüfungen klar.
 - Lege keine Zugangsdaten, Tokens oder sonstige Geheimnisse in Dateien, Commits oder Logs ab.
@@ -19,6 +20,8 @@
 
 ## Branch, Commit, Push und Pull Request
 Ablauf: Issue → Branch → Plan → Umsetzung → Commit & Push → Pull Request → Review und Merge durch den Projektinhaber.
+
+- Frag ob diese Aufgabe über github und branches gelöst werden sollte. Wenn ja mache mit den nächsten schritten weiter:
 
 - Jede Aufgabe gehört zu einem GitHub-Issue. Prüfe vor Änderungen mit `git fetch` und `git branch -a`, ob es zum Issue schon einen Branch gibt, und arbeite dort. Bist du bereits auf dem passenden Branch, bleibe dort.
 - Gibt es noch keinen Branch, erstelle ihn erst nach Zustimmung zum Plan, im Schema `<issue-nummer>-<kurze-beschreibung>` (zum Beispiel `15-agentsmd-anpassen`), so wie GitHub Branches aus Issues benennt. Kleinbuchstaben und Bindestriche. Ohne passendes Issue: nachfragen statt eine Nummer zu erfinden.
